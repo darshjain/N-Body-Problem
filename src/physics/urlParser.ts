@@ -1,5 +1,5 @@
-import { Body } from './rk4';
-import { IntegratorType } from './integrators';
+import type { Body } from './rk4';
+import type { IntegratorType } from './integrators';
 
 export interface SystemConfig {
     bodies: Body[];

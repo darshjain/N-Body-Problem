@@ -1,4 +1,5 @@
-import { Body, G, Vector3 } from './rk4';
+import { G } from './rk4';
+import type { Body, Vector3 } from './rk4';
 
 export type IntegratorType = 'rk4' | 'verlet';
 

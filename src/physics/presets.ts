@@ -75,7 +75,7 @@ export const PRESETS: Record<PresetName, (scale?: number) => Body[]> = {
     },
     'Pythagorean': (scale = 4) => {
         const s = scale * 0.5;
-        const vS = 1; // Pythagorean is a specific 3-4-5 instant, velocities are zero initially
+        // Pythagorean is a specific 3-4-5 instant, velocities are zero initially
         return [
             { id: '1', mass: 3, position: { x: 1 * s, y: 3 * s, z: 0 }, velocity: { x: 0, y: 0, z: 0 }, radius: 0.4, color: COLORS[0] },
             { id: '2', mass: 4, position: { x: -2 * s, y: -1 * s, z: 0 }, velocity: { x: 0, y: 0, z: 0 }, radius: 0.5, color: COLORS[1] },

@@ -37,7 +37,7 @@ export const ThreeBody = forwardRef<ThreeBodyHandle, ThreeBodyProps>(({
     };
 
     const bodiesRef = useRef<Body[]>(getInitialState());
-    const [renderBodies, setRenderBodies] = useRefState(bodiesRef.current);
+
 
     // Helper to keep state blindly synced for rendering if needed, 
     // but usually direct ref manipulation is better for physics loop performance.
@@ -131,9 +131,3 @@ export const ThreeBody = forwardRef<ThreeBodyHandle, ThreeBodyProps>(({
         </>
     );
 });
-
-// Helper hook to store ref in state for initial render
-function useRefState<T>(initialValue: T): [T, React.Dispatch<React.SetStateAction<T>>] {
-    const [state, setState] = useState(initialValue);
-    return [state, setState];
-}
