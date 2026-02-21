@@ -1,6 +1,6 @@
-# React + TypeScript + Vite
+# N-Body Problem Simulator
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This project is a React + TypeScript + Vite application that simulates the N-Body Problem using various numerical integration methods. It features real-time interactive physics simulations, customizable initial conditions, and dynamic components such as gravity planes and wormholes.
 
 Currently, two official plugins are available:
 
