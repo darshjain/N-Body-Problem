@@ -1,43 +1,50 @@
-import { useState, Suspense, useRef, useEffect } from 'react';
+import { useRef, useState, useMemo, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Stars, PerspectiveCamera } from '@react-three/drei';
 import { ThreeBody } from './components/ThreeBody';
 import type { ThreeBodyHandle } from './components/ThreeBody';
 import { Controls } from './components/Controls';
 import { SystemMonitor } from './components/SystemMonitor';
+import { GravityPlane } from './components/GravityPlane';
 import type { PresetName } from './physics/presets';
 import type { Body } from './physics/rk4';
 import { parseURLParams } from './physics/urlParser';
 import type { IntegratorType } from './physics/integrators';
 
 function App() {
-  const [preset, setPreset] = useState<PresetName | 'Custom'>('Figure 8');
-  const [customBodies, setCustomBodies] = useState<Body[] | undefined>(undefined);
-  const [integrator, setIntegrator] = useState<IntegratorType>('rk4');
+  // Parse URL on init
+  const initialConfig = useMemo(() => {
+    const params = window.location.search;
+    return params ? parseURLParams(params) : null;
+  }, []);
 
-  const [paused, setPaused] = useState(false);
-  const [speed, setSpeed] = useState(1.0);
+  const [preset, setPreset] = useState<PresetName | 'Custom'>(initialConfig ? 'Custom' : 'Figure 8');
+  const [customBodies, setCustomBodies] = useState<Body[] | undefined>(initialConfig?.bodies);
+  const [integrator, setIntegrator] = useState<IntegratorType>(initialConfig?.integrator || 'rk4');
+  const [speed, setSpeed] = useState(initialConfig ? initialConfig.timeStep * 100 : 1.0);
   const [spread, setSpread] = useState(4.0);
+  const [paused, setPaused] = useState(false);
 
-  const [showMonitor, setShowMonitor] = useState(true);
-  const [showHelpers, setShowHelpers] = useState(true); // Default to on for scientific look
+  // Visual State
+  const [showForceVectors, setShowForceVectors] = useState(false);
+  const [showVelocityVectors, setShowVelocityVectors] = useState(true);
+  const [showTrails, setShowTrails] = useState(true);
+  const [showGrid, setShowGrid] = useState(false); // Default off in screenshot
+  const [showGravityPlane, setShowGravityPlane] = useState(false);
+  const [anaglyph, setAnaglyph] = useState(false);
+
+  // Visual Sliders
+  const [trailLength, setTrailLength] = useState(1.0); // 0 to 1 scale
+  const [trailThickness, setTrailThickness] = useState(1);
+  const [bodySize, setBodySize] = useState(0.5);
+
+  // Camera
+  const [followTarget, setFollowTarget] = useState<string | null>(null); // Body ID
+  const [cameraMode, setCameraMode] = useState<'free' | 'locked'>('free'); // 'free' or 'locked' relative to target
 
   const [activeBodies, setActiveBodies] = useState<Body[]>([]);
   const simulationRef = useRef<ThreeBodyHandle>(null);
 
-  // Parse URL on mount
-  useEffect(() => {
-    const params = window.location.search;
-    if (params) {
-      const config = parseURLParams(params);
-      if (config) {
-        setPreset('Custom');
-        setCustomBodies(config.bodies);
-        setIntegrator(config.integrator);
-        setSpeed(config.timeStep * 100);
-      }
-    }
-  }, []);
 
   const handleAddBody = (body: Body) => {
     simulationRef.current?.addBody(body);
@@ -60,10 +67,15 @@ function App() {
 
       {/* 3D Scene */}
       <div className="absolute inset-0 z-0">
-        <Canvas gl={{ antialias: true, toneMappingExposure: 1.0 }}>
+        <Canvas gl={{ antialias: true, toneMappingExposure: 1.0 }} shadows>
           <Suspense fallback={null}>
             <PerspectiveCamera makeDefault position={[0, 5, 20]} fov={45} />
             <OrbitControls makeDefault enablePan={true} enableZoom={true} enableRotate={true} />
+
+            {/* Anaglyph Effect Wrapper would go here if we had it, for now just pass prop to ThreeBody to maybe handle camera stereo? 
+                Actually standard three.js AnaglyphEffect is a post-processing pass. 
+                We can add it later.
+            */}
 
             <ambientLight intensity={0.4} />
             <pointLight position={[20, 20, 20]} intensity={1.5} />
@@ -79,9 +91,19 @@ function App() {
               speed={paused ? 0 : speed}
               spread={spread}
               paused={paused}
-              showHelpers={showHelpers}
+              showHelpers={showGrid} // Grid/Axes
+              showForceVectors={showForceVectors}
+              showVelocityVectors={showVelocityVectors}
+              showTrails={showTrails}
+              trailLength={trailLength}
+              trailThickness={trailThickness}
+              bodySize={bodySize}
+              followTarget={followTarget}
               onUpdateMetrics={setActiveBodies}
             />
+
+            <GravityPlane bodies={activeBodies} visible={showGravityPlane} />
+
           </Suspense>
         </Canvas>
       </div>
@@ -96,18 +118,43 @@ function App() {
         setSpeed={setSpeed}
         spread={spread}
         setSpread={setSpread}
-        showMonitor={showMonitor}
-        setShowMonitor={setShowMonitor}
-        showHelpers={showHelpers}
-        setShowHelpers={setShowHelpers}
-        onAddBody={handleAddBody}
-        onLoadCustom={handleLoadCustom}
         activeCount={activeBodies.length}
+        activeBodies={activeBodies} // Pass full list for Follow dropdown
+
+        // Visual Props
+        showForceVectors={showForceVectors}
+        setShowForceVectors={setShowForceVectors}
+        showVelocityVectors={showVelocityVectors}
+        setShowVelocityVectors={setShowVelocityVectors}
+        showTrails={showTrails}
+        setShowTrails={setShowTrails}
+        showGrid={showGrid}
+        setShowGrid={setShowGrid}
+        showGravityPlane={showGravityPlane}
+        setShowGravityPlane={setShowGravityPlane}
+        anaglyph={anaglyph}
+        setAnaglyph={setAnaglyph}
+
+        trailLength={trailLength}
+        setTrailLength={setTrailLength}
+        trailThickness={trailThickness}
+        setTrailThickness={setTrailThickness}
+        bodySize={bodySize}
+        setBodySize={setBodySize}
+
+        followTarget={followTarget}
+        setFollowTarget={setFollowTarget}
+        cameraMode={cameraMode}
+        setCameraMode={setCameraMode}
+
+        onAddBody={handleAddBody}
+        onSpawnWormhole={() => simulationRef.current?.spawnWormholes()}
+        onLoadCustom={handleLoadCustom}
       />
 
       <SystemMonitor
         bodies={activeBodies}
-        visible={showMonitor}
+        visible={true}
       />
 
       {/* Title / Branding - Scientific */}

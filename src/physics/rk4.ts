@@ -7,6 +7,7 @@ export interface Body {
   velocity: Vector3;
   color: string;
   radius: number;
+  force?: Vector3;
 }
 
 export const G = 1.0;

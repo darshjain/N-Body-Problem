@@ -1,5 +1,5 @@
 import React from 'react';
-import { G } from '../physics/rk4';
+
 import type { Body } from '../physics/rk4';
 import { clsx } from 'clsx';
 
@@ -10,7 +10,7 @@ interface SystemMonitorProps {
 
 const getStabilityStatus = (body: Body, others: Body[]) => {
     // Calculate total gravitational force magnitude acting on this body
-    let totalForce = 0;
+
     let minDistance = Infinity;
 
     others.forEach(other => {
@@ -22,8 +22,7 @@ const getStabilityStatus = (body: Body, others: Body[]) => {
 
         if (dist < minDistance) minDistance = dist;
 
-        // F = G * m1 * m2 / r^2
-        totalForce += (G * body.mass * other.mass) / distSq;
+
     });
 
     // Heuristics for "Era"

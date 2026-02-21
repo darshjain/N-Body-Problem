@@ -46,31 +46,63 @@ export const PRESETS: Record<PresetName, (scale?: number) => Body[]> = {
         ];
     },
     'Sun Earth Moon': (scale = 4) => {
-        // This is a specific system, "Scale" might just mean zoom, but let's apply physics scaling
-        // Original scale was ~4 for Earth x.
-        // Let's treat the inputs as "Base" and just apply `scale/4` ratio if we want to honor the slider?
-        // Or just apply scale directly. 
-        // Let's apply scale relative to "default" 1.
-        // Note: The preset bodies were defined with hardcoded positions like x=4.
-        // If we want "scale=10" to be bigger, we just multiply.
-        // But "Sun Earth Moon" relies on specific G=1 distances.
-        // Let's just scale everything by `scale` (assuming default passed in is meaningful).
-        // Actually, let's treat "scale" as a multiplier for these specific systems?
-        // No, uniform "Spread" slider.
-        // Let's use `scale` as the multiplier. Default slider 4.
-        // So `x: 4 * scale`? No that's huge.
-        // Let's treat the slider as the "Characteristic Length".
-        // For Figure 8, char length is ~1. So slider=4 makes it 4x bigger.
-        // For Sun Earth, char length is ~4. So slider=4 makes it... same?
-        // Let's just multiply by (scale / 2) to keep defaults sane?
-        // User asked for "Higher default".
-        // Let's just use `s = scale` directly.
-        const s = scale * 0.5; // Reduce sensitivity
-        const vS = 1 / Math.sqrt(s);
+        // Schematic representation: Not to scale but stable orbits.
+        // Scale input roughly controls "Spread".
+        const s = scale * 0.5; // Base distance unit
+
+        // Masses
+        const M_sun = 100;
+        const M_earth = 1;
+        const M_moon = 0.01;
+
+        // Distances
+        const r_earth = 10 * s;
+        const r_moon = 1 * s; // Distance from Earth
+
+        // G implied = 1 (from Integrators)
+        // Velocities for Circular Orbits: v = sqrt(GM/r)
+
+        // Earth orbits Sun
+        const v_earth = Math.sqrt(1 * (M_sun) / r_earth); // Neglecting M_earth for simplicity or use (M+m)
+
+        // Moon orbits Earth
+        const v_moon_local = Math.sqrt(1 * (M_earth) / r_moon);
+
         return [
-            { id: 'Sun', mass: 10, position: { x: 0, y: 0, z: 0 }, velocity: { x: 0, y: 0, z: 0 }, radius: 0.8, color: '#fbbf24' },
-            { id: 'Earth', mass: 0.1, position: { x: 4 * s, y: 0, z: 0 }, velocity: { x: 0, y: 1.58 * vS, z: 0 }, radius: 0.2, color: '#3b82f6' },
-            { id: 'Moon', mass: 0.001, position: { x: 4.5 * s, y: 0, z: 0.1 * s }, velocity: { x: 0, y: (1.58 + 0.44) * vS, z: 0 }, radius: 0.05, color: '#9ca3af' }
+            {
+                id: 'Sun',
+                mass: M_sun,
+                position: { x: 0, y: 0, z: 0 },
+                velocity: { x: 0, y: 0, z: 0 },
+                radius: 1.5,
+                color: '#fbbf24' // warm sun
+            },
+            {
+                id: 'Earth',
+                mass: M_earth,
+                position: { x: r_earth, y: 0, z: 0 },
+                velocity: { x: 0, y: 0, z: v_earth }, // Orbit in X-Z plane? Or X-Y?
+                // Preset logic usually X-Y plane? 
+                // Let's stick to X-Y plane for 2D screens, Z is up/down?
+                // Wait, in ThreeJS Y is up. 
+                // Previous preset had Y velocity. So orbit is in X-Z? 
+                // Previous preset: pos x, vel y. -> Orbit in X-Y plane.
+                // Let's do X-Y plane orbit.
+                // So pos x=R, vel y=V.
+
+                // Correction: previous code pos: { x: 4*s, y: 0, z: 0 }, vel: { x: 0, y: v, z: 0 }
+                // So Earth starts at X, moves in Y. Orbit in XY plane.
+                radius: 0.4,
+                color: '#3b82f6' // blue earth
+            },
+            {
+                id: 'Moon',
+                mass: M_moon,
+                position: { x: r_earth + r_moon, y: 0, z: 0 },
+                velocity: { x: 0, y: v_earth + v_moon_local, z: 0 },
+                radius: 0.1,
+                color: '#9ca3af' // grey moon
+            }
         ];
     },
     'Pythagorean': (scale = 4) => {

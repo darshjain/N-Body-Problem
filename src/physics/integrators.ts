@@ -80,6 +80,8 @@ export const stepRK4 = (bodies: Body[], dt: number): Body[] => {
 
         b.position = add(b.position, mul(dPosAcc, dt / 6.0));
         b.velocity = add(b.velocity, mul(dVelAcc, dt / 6.0));
+        // Use k4.dVel (accel at t+dt) for visualization. F = ma
+        b.force = mul(k4.dVel[i], b.mass);
         return b;
     });
 };
@@ -105,6 +107,8 @@ export const stepVerlet = (bodies: Body[], dt: number): Body[] => {
     // 4. Half step velocity (finish)
     for (let i = 0; i < nextBodies.length; i++) {
         nextBodies[i].velocity = add(nextBodies[i].velocity, mul(nextAccels[i], 0.5 * dt));
+        // Save force for viz
+        nextBodies[i].force = mul(nextAccels[i], nextBodies[i].mass);
     }
 
     return nextBodies;

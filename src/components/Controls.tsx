@@ -1,11 +1,8 @@
-import React, { useState } from 'react';
-import { Play, Pause, Plus, Eye, Settings, Activity, Download, Globe } from 'lucide-react';
-import { PRESETS } from '../physics/presets';
+import { Minus, Plus, Zap } from 'lucide-react';
+import { useState } from 'react';
 import type { PresetName } from '../physics/presets';
-import { clsx } from 'clsx';
-import type { Body } from '../physics/rk4';
 import type { IntegratorType } from '../physics/integrators';
-import { parseURLParams } from '../physics/urlParser';
+import type { Body } from '../physics/rk4';
 
 interface ControlsProps {
     preset: PresetName | 'Custom';
@@ -16,275 +13,332 @@ interface ControlsProps {
     setSpeed: (s: number) => void;
     spread: number;
     setSpread: (s: number) => void;
-    showMonitor: boolean;
-    setShowMonitor: (s: boolean) => void;
-    showHelpers: boolean;
-    setShowHelpers: (s: boolean) => void;
-    onAddBody: (b: Body) => void;
-    onLoadCustom: (config: { bodies: Body[], integrator: IntegratorType, dt: number }) => void;
     activeCount: number;
+    activeBodies: Body[];
+
+    showForceVectors: boolean;
+    setShowForceVectors: (b: boolean) => void;
+    showVelocityVectors: boolean;
+    setShowVelocityVectors: (b: boolean) => void;
+    showTrails: boolean;
+    setShowTrails: (b: boolean) => void;
+    showGrid: boolean;
+    setShowGrid: (b: boolean) => void;
+    showGravityPlane: boolean;
+    setShowGravityPlane: (b: boolean) => void;
+    anaglyph: boolean;
+    setAnaglyph: (b: boolean) => void;
+
+    trailLength: number;
+    setTrailLength: (n: number) => void;
+    trailThickness: number;
+    setTrailThickness: (n: number) => void;
+    bodySize: number;
+    setBodySize: (n: number) => void;
+
+    followTarget: string | null;
+    setFollowTarget: (id: string | null) => void;
+    cameraMode: 'free' | 'locked';
+    setCameraMode: (m: 'free' | 'locked') => void;
+
+    onAddBody: (b: Body) => void;
+    onSpawnWormhole: () => void;
+    onLoadCustom: (config: { bodies: Body[], integrator: IntegratorType, dt: number }) => void;
 }
 
-export const Controls: React.FC<ControlsProps> = ({
-    preset, setPreset, paused, setPaused, speed, setSpeed,
-    spread, setSpread, showMonitor, setShowMonitor, showHelpers, setShowHelpers,
-    onAddBody, onLoadCustom, activeCount
-}) => {
-    const [activeTab, setActiveTab] = useState<'config' | 'view' | 'inject'>('config');
-    const [urlInput, setUrlInput] = useState('');
+export const Controls = ({
+    preset, setPreset,
+    speed, setSpeed,
+    activeCount, activeBodies,
 
-    // Body Injection State
-    const [newBody, setNewBody] = useState({
+    showForceVectors, setShowForceVectors,
+    showVelocityVectors, setShowVelocityVectors,
+    showTrails, setShowTrails,
+    showGrid, setShowGrid,
+    showGravityPlane, setShowGravityPlane,
+    anaglyph, setAnaglyph,
+
+    trailLength, setTrailLength,
+    trailThickness, setTrailThickness,
+    bodySize, setBodySize,
+
+    followTarget, setFollowTarget,
+    cameraMode, setCameraMode,
+
+    onAddBody,
+    onSpawnWormhole
+}: ControlsProps) => {
+
+    const handleShare = () => {
+        navigator.clipboard.writeText(window.location.href);
+        alert('Configuration URL copied to clipboard!');
+    };
+
+    const addRandomBody = () => {
+        onAddBody({
+            id: `random - ${Math.random().toString(36).substr(2, 5)} `,
+            mass: Math.random() * 2 + 0.5,
+            position: { x: (Math.random() - 0.5) * 10, y: (Math.random() - 0.5) * 10, z: (Math.random() - 0.5) * 5 },
+            velocity: { x: (Math.random() - 0.5) * 0.5, y: (Math.random() - 0.5) * 0.5, z: (Math.random() - 0.5) * 0.5 },
+            radius: 0.5,
+            color: '#ffffff'
+        });
+    };
+
+    const [injectForm, setInjectForm] = useState({
         mass: 1,
         x: 0, y: 0, z: 0,
         vx: 0, vy: 0, vz: 0,
-        color: '#3b82f6'
+        color: '#ff0000'
     });
 
     const handleInject = () => {
         onAddBody({
-            id: `manual-${Math.random().toString(36).substr(2, 9)}`,
-            mass: newBody.mass,
-            position: { x: newBody.x, y: newBody.y, z: newBody.z },
-            velocity: { x: newBody.vx, y: newBody.vy, z: newBody.vz },
-            color: newBody.color,
-            radius: Math.max(0.1, Math.min(0.5, newBody.mass * 0.1))
+            id: `manual-${Math.random().toString(36).substr(2, 5)}`,
+            mass: injectForm.mass,
+            position: { x: injectForm.x, y: injectForm.y, z: injectForm.z },
+            velocity: { x: injectForm.vx, y: injectForm.vy, z: injectForm.vz },
+            radius: Math.pow(injectForm.mass, 1 / 3) * 0.5, // Scale radius by mass roughly
+            color: injectForm.color
         });
     };
 
-    const handleUrlImport = () => {
-        try {
-            // Extract query string if full URL provided
-            const query = urlInput.includes('?') ? urlInput.split('?')[1] : urlInput;
-            const config = parseURLParams(query);
-            if (config) {
-                onLoadCustom({
-                    bodies: config.bodies,
-                    integrator: config.integrator,
-                    dt: config.timeStep
-                });
-                setUrlInput('');
-            } else {
-                alert('Invalid Parameters');
-            }
-        } catch (e) {
-            alert('Error parsing URL');
-        }
-    };
+    const [activeTab, setActiveTab] = useState<'config' | 'view' | 'inject'>('config');
 
     return (
-        <div className="absolute top-4 right-4 w-96 flex flex-col gap-2 z-10 max-h-[90vh] text-gray-200 font-sans">
-            <div className="bg-[#111]/90 backdrop-blur-md border border-white/10 rounded-xl p-4 shadow-2xl">
+        <div className="absolute top-4 right-4 w-72 bg-black/90 text-gray-200 border border-gray-800 rounded-lg shadow-2xl backdrop-blur-md flex flex-col max-h-[90vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700 select-none font-mono">
 
-                {/* Header / Tabs */}
-                <div className="flex items-center gap-1 mb-6 border-b border-white/5 pb-2">
-                    <TabButton icon={<Settings size={14} />} label="Config" active={activeTab === 'config'} onClick={() => setActiveTab('config')} />
-                    <TabButton icon={<Eye size={14} />} label="View" active={activeTab === 'view'} onClick={() => setActiveTab('view')} />
-                    <TabButton icon={<Plus size={14} />} label="Inject" active={activeTab === 'inject'} onClick={() => setActiveTab('inject')} />
-                </div>
+            {/* Header Tabs */}
+            <div className="flex border-b border-gray-800 bg-gray-900/50">
+                <button
+                    onClick={() => setActiveTab('config')}
+                    className={`flex-1 py-3 text-[10px] font-bold uppercase tracking-wider transition-colors ${activeTab === 'config' ? 'text-white border-b-2 border-blue-500' : 'text-gray-500 hover:text-gray-300'}`}
+                >
+                    <div className="flex items-center justify-center gap-1"><span className="text-lg">⚙</span> Config</div>
+                </button>
+                <button
+                    onClick={() => setActiveTab('view')}
+                    className={`flex-1 py-3 text-[10px] font-bold uppercase tracking-wider transition-colors ${activeTab === 'view' ? 'text-white border-b-2 border-blue-500' : 'text-gray-500 hover:text-gray-300'}`}
+                >
+                    <div className="flex items-center justify-center gap-1"><span className="text-lg">👁</span> View</div>
+                </button>
+                <button
+                    onClick={() => setActiveTab('inject')}
+                    className={`flex-1 py-3 text-[10px] font-bold uppercase tracking-wider transition-colors ${activeTab === 'inject' ? 'text-white border-b-2 border-blue-500 bg-gray-800' : 'text-gray-500 hover:text-gray-300'}`}
+                >
+                    <div className="flex items-center justify-center gap-1"><Plus size={14} /> Inject</div>
+                </button>
+            </div>
 
-                {/* --- CONFIGURATION TAB --- */}
+            <div className="p-4 space-y-4">
+
+                {/* CONFIG TAB */}
                 {activeTab === 'config' && (
-                    <div className="space-y-5 animate-in fade-in slide-in-from-right-4 duration-300">
-
-                        {/* Playback */}
-                        <div className="flex items-center justify-between bg-white/5 p-3 rounded-lg border border-white/5">
-                            <button
-                                onClick={() => setPaused(!paused)}
-                                className={clsx(
-                                    "flex items-center justify-center w-10 h-10 rounded-full transition-all border",
-                                    paused
-                                        ? "bg-yellow-500/10 border-yellow-500/50 text-yellow-500 hover:bg-yellow-500/20"
-                                        : "bg-green-500/10 border-green-500/50 text-green-500 hover:bg-green-500/20"
-                                )}
-                            >
-                                {paused ? <Play size={18} className="ml-1" /> : <Pause size={18} />}
+                    <>
+                        {/* Simulation Controls */}
+                        <div className="space-y-2">
+                            <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Simulation</div>
+                            <button onClick={() => setPreset('Random Chaos')} className="w-full bg-red-900/50 hover:bg-red-900/80 text-red-200 border border-red-800/50 font-bold py-2 rounded text-xs transition-colors">
+                                RESET ALL (RANDOM)
                             </button>
-
-                            <div className="flex-1 ml-4">
-                                <div className="flex justify-between text-[10px] text-gray-500 uppercase tracking-wider mb-1">
-                                    <span>Time Dilation</span>
-                                    <span>{speed.toFixed(2)}x</span>
-                                </div>
-                                <input
-                                    type="range" min="0.1" max="5" step="0.1"
-                                    value={speed} onChange={(e) => setSpeed(parseFloat(e.target.value))}
-                                    className="w-full accent-blue-500 h-1 bg-white/10 rounded-full appearance-none cursor-pointer"
-                                />
-                            </div>
-                        </div>
-
-                        {/* Presets */}
-                        <div>
-                            <label className="text-[10px] text-gray-500 uppercase tracking-widest mb-2 block">System Presets</label>
+                            <button onClick={() => window.location.reload()} className="w-full bg-blue-900/50 hover:bg-blue-900/80 text-blue-200 border border-blue-800/50 font-bold py-2 rounded text-xs transition-colors">
+                                RESTART
+                            </button>
+                            <button onClick={onSpawnWormhole} className="w-full bg-yellow-900/50 hover:bg-yellow-900/80 text-yellow-200 border border-yellow-800/50 font-bold py-2 rounded text-xs transition-colors flex items-center justify-center gap-2">
+                                <Zap size={14} /> SPAWN WORMHOLE PAIR
+                            </button>
                             <div className="grid grid-cols-2 gap-2">
-                                {(Object.keys(PRESETS) as PresetName[]).map((p) => (
-                                    <button
-                                        key={p}
-                                        onClick={() => setPreset(p)}
-                                        className={clsx(
-                                            "px-3 py-2 text-xs font-mono text-left transition-all border rounded-md",
-                                            preset === p
-                                                ? "bg-blue-500/10 border-blue-500/50 text-blue-400"
-                                                : "bg-transparent border-white/10 text-gray-400 hover:bg-white/5"
-                                        )}
-                                    >
-                                        {p}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* URL Import */}
-                        <div>
-                            <label className="text-[10px] text-gray-500 uppercase tracking-widest mb-2 block">Import Configuration</label>
-                            <div className="flex gap-2">
-                                <input
-                                    type="text"
-                                    placeholder="Paste trisolarchaos URL..."
-                                    className="flex-1 bg-black/50 border border-white/10 rounded px-2 py-1 text-xs text-gray-300 focus:border-blue-500/50 outline-none"
-                                    value={urlInput}
-                                    onChange={(e) => setUrlInput(e.target.value)}
-                                />
-                                <button
-                                    onClick={handleUrlImport}
-                                    className="p-1 px-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-gray-400 hover:text-white transition-colors"
-                                >
-                                    <Download size={14} />
+                                <button onClick={handleShare} className="bg-purple-900/50 hover:bg-purple-900/80 text-purple-200 border border-purple-800/50 font-bold py-2 rounded text-[10px] transition-colors">
+                                    SHARE CONFIG
+                                </button>
+                                <button className="bg-green-900/50 hover:bg-green-900/80 text-green-200 border border-green-800/50 font-bold py-2 rounded text-[10px] transition-colors">
+                                    LOAD PRESET
                                 </button>
                             </div>
                         </div>
-                    </div>
-                )}
 
-                {/* --- VIEW TAB --- */}
-                {activeTab === 'view' && (
-                    <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
-                        <div>
-                            <div className="flex justify-between text-[10px] text-gray-500 uppercase tracking-wider mb-1">
-                                <span>Initial Spread</span>
-                                <span>{spread.toFixed(1)} AU</span>
+                        <div className="space-y-1 pt-4 border-t border-gray-800">
+                            <label className="text-gray-500 text-[10px] uppercase">Current Preset</label>
+                            <div className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-center text-blue-300 text-xs">
+                                {preset}
                             </div>
-                            <input
-                                type="range" min="1" max="10" step="0.5"
-                                value={spread} onChange={(e) => setSpread(parseFloat(e.target.value))}
-                                className="w-full accent-purple-500 h-1 bg-white/10 rounded-full appearance-none cursor-pointer"
-                            />
                         </div>
 
-                        <div className="space-y-2">
-                            <Toggle label="System Monitor" active={showMonitor} onClick={() => setShowMonitor(!showMonitor)} icon={<Activity size={14} />} />
-                            <Toggle label="Reference Grid & Axis" active={showHelpers} onClick={() => setShowHelpers(!showHelpers)} icon={<Globe size={14} />} />
-                        </div>
-
-                        <div className="p-3 bg-blue-500/5 border border-blue-500/20 rounded text-[10px] text-blue-400/80 leading-relaxed font-mono">
-                            Rendering {activeCount} active bodies. <br />
-                            Lighting calculated per-frame. <br />
-                            Bloom effects disabled for accuracy.
-                        </div>
-                    </div>
-                )}
-
-                {/* --- INJECT TAB --- */}
-                {activeTab === 'inject' && (
-                    <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
-                        <div className="grid grid-cols-2 gap-3">
-                            <InputGroup label="Mass (M☉)">
-                                <input type="number" value={newBody.mass} onChange={e => setNewBody({ ...newBody, mass: parseFloat(e.target.value) })} className="input-scientific" />
-                            </InputGroup>
-                            <InputGroup label="Color">
-                                <div className="flex items-center gap-2 h-full">
-                                    <input type="color" value={newBody.color} onChange={e => setNewBody({ ...newBody, color: e.target.value })} className="h-6 w-full bg-transparent cursor-pointer" />
+                        {/* Configuration */}
+                        <div className="space-y-4 pt-4 border-t border-gray-800">
+                            {/* Speed */}
+                            <div className="space-y-1">
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-gray-400">Time Speed</span>
+                                    <span className="text-blue-400 font-mono">{speed.toFixed(1)}x</span>
                                 </div>
-                            </InputGroup>
-                        </div>
+                                <input
+                                    type="range" min="0" max="5" step="0.1"
+                                    value={speed} onChange={(e) => setSpeed(parseFloat(e.target.value))}
+                                    className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                                />
+                            </div>
 
-                        <div className="space-y-1">
-                            <label className="text-[10px] text-gray-500 uppercase">Position (AU)</label>
-                            <div className="grid grid-cols-3 gap-1">
-                                <input type="number" placeholder="X" value={newBody.x} onChange={e => setNewBody({ ...newBody, x: parseFloat(e.target.value) })} className="input-scientific" />
-                                <input type="number" placeholder="Y" value={newBody.y} onChange={e => setNewBody({ ...newBody, y: parseFloat(e.target.value) })} className="input-scientific" />
-                                <input type="number" placeholder="Z" value={newBody.z} onChange={e => setNewBody({ ...newBody, z: parseFloat(e.target.value) })} className="input-scientific" />
+                            {/* Bodies Count */}
+                            <div className="space-y-1">
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-gray-400">Total Bodies</span>
+                                    <span className="text-blue-400 font-mono">{activeCount}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button className="bg-gray-800 p-1.5 rounded hover:bg-gray-700 transition-colors"><Minus size={12} /></button>
+                                    <input
+                                        type="range" min="1" max="100"
+                                        value={activeCount}
+                                        readOnly
+                                        className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                                    />
+                                    <button onClick={addRandomBody} className="bg-gray-800 p-1.5 rounded hover:bg-gray-700 transition-colors"><Plus size={12} /></button>
+                                </div>
+                            </div>
+                        </div>
+                    </>
+                )}
+
+                {/* VIEW TAB */}
+                {activeTab === 'view' && (
+                    <div className="space-y-4">
+                        {/* Camera */}
+                        <div className="space-y-3">
+                            <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Camera & View</div>
+                            <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                    <span className="text-[10px] text-gray-400 uppercase">Target</span>
+                                    <select
+                                        value={followTarget || ''}
+                                        onChange={(e) => setFollowTarget(e.target.value || null)}
+                                        className="bg-gray-800 border-none text-xs rounded px-2 py-1.5 w-full focus:ring-1 focus:ring-blue-500"
+                                    >
+                                        <option value="">None (Free)</option>
+                                        {activeBodies.map((b, i) => (
+                                            <option key={b.id} value={b.id}>Body {i + 1}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="space-y-1">
+                                    <span className="text-[10px] text-gray-400 uppercase">Mode</span>
+                                    <select
+                                        value={cameraMode}
+                                        onChange={(e) => setCameraMode(e.target.value as 'free' | 'locked')}
+                                        className="bg-gray-800 border-none text-xs rounded px-2 py-1.5 w-full focus:ring-1 focus:ring-blue-500"
+                                    >
+                                        <option value="free">Orbital</option>
+                                        <option value="locked">Locked</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
 
-                        <div className="space-y-1">
-                            <label className="text-[10px] text-gray-500 uppercase">Velocity (km/s)</label>
-                            <div className="grid grid-cols-3 gap-1">
-                                <input type="number" placeholder="VX" value={newBody.vx} onChange={e => setNewBody({ ...newBody, vx: parseFloat(e.target.value) })} className="input-scientific" />
-                                <input type="number" placeholder="VY" value={newBody.vy} onChange={e => setNewBody({ ...newBody, vy: parseFloat(e.target.value) })} className="input-scientific" />
-                                <input type="number" placeholder="VZ" value={newBody.vz} onChange={e => setNewBody({ ...newBody, vz: parseFloat(e.target.value) })} className="input-scientific" />
+                        {/* Toggles */}
+                        <div className="space-y-2 pt-2 border-t border-gray-800">
+                            <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Overlays</div>
+                            <Toggle label="Force Vectors" checked={showForceVectors} onChange={setShowForceVectors} />
+                            <Toggle label="Velocity Vectors" checked={showVelocityVectors} onChange={setShowVelocityVectors} />
+                            <Toggle label="Orbital Trails" checked={showTrails} onChange={setShowTrails} />
+                            <Toggle label="Reference Grid" checked={showGrid} onChange={setShowGrid} />
+                            <Toggle label="Gravity Plane" checked={showGravityPlane} onChange={setShowGravityPlane} />
+                            <Toggle label="Anaglyph 3D" checked={anaglyph} onChange={setAnaglyph} />
+                        </div>
+
+                        {/* Visual Sliders */}
+                        <div className="space-y-3 pt-4 border-t border-gray-800">
+                            <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Appearance</div>
+                            <Slider label="Trail Length" value={trailLength} min={0.1} max={50} step={0.1} onChange={setTrailLength} />
+                            <Slider label="Trail Thickness" value={trailThickness} min={0.1} max={5} step={0.1} onChange={setTrailThickness} />
+                            <Slider label="Body Size" value={bodySize} min={0.1} max={3} step={0.1} onChange={setBodySize} />
+                        </div>
+                    </div>
+                )}
+
+                {/* INJECT TAB */}
+                {activeTab === 'inject' && (
+                    <div className="space-y-4 animate-in fade-in duration-300">
+                        {/* Mass & Color */}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Mass (M ☉)</label>
+                                <input
+                                    type="number"
+                                    step="0.1"
+                                    value={injectForm.mass}
+                                    onChange={(e) => setInjectForm({ ...injectForm, mass: parseFloat(e.target.value) })}
+                                    className="w-full bg-gray-800 border border-gray-700 rounded p-2 text-sm focus:border-blue-500 focus:outline-none"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Color</label>
+                                <div className="flex h-[38px] w-full relative rounded overflow-hidden border border-gray-700">
+                                    <input
+                                        type="color"
+                                        value={injectForm.color}
+                                        onChange={(e) => setInjectForm({ ...injectForm, color: e.target.value })}
+                                        className="absolute -top-2 -left-2 w-[200%] h-[200%] cursor-pointer p-0 border-0"
+                                    />
+                                </div>
                             </div>
                         </div>
 
-                        <button
-                            onClick={handleInject}
-                            className="w-full py-2 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 rounded transition-all text-xs font-mono uppercase tracking-widest mt-4"
-                        >
-                            Inject Body
-                        </button>
+                        {/* Position */}
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Position (AU)</label>
+                            <div className="grid grid-cols-3 gap-2">
+                                <input type="number" placeholder="X" value={injectForm.x} onChange={(e) => setInjectForm({ ...injectForm, x: parseFloat(e.target.value) })} className="bg-gray-800 border border-gray-700 rounded p-2 text-xs focus:border-blue-500 focus:outline-none placeholder-gray-600" />
+                                <input type="number" placeholder="Y" value={injectForm.y} onChange={(e) => setInjectForm({ ...injectForm, y: parseFloat(e.target.value) })} className="bg-gray-800 border border-gray-700 rounded p-2 text-xs focus:border-blue-500 focus:outline-none placeholder-gray-600" />
+                                <input type="number" placeholder="Z" value={injectForm.z} onChange={(e) => setInjectForm({ ...injectForm, z: parseFloat(e.target.value) })} className="bg-gray-800 border border-gray-700 rounded p-2 text-xs focus:border-blue-500 focus:outline-none placeholder-gray-600" />
+                            </div>
+                        </div>
+
+                        {/* Velocity */}
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Velocity (KM/S)</label>
+                            <div className="grid grid-cols-3 gap-2">
+                                <input type="number" placeholder="VX" value={injectForm.vx} onChange={(e) => setInjectForm({ ...injectForm, vx: parseFloat(e.target.value) })} className="bg-gray-800 border border-gray-700 rounded p-2 text-xs focus:border-blue-500 focus:outline-none placeholder-gray-600" />
+                                <input type="number" placeholder="VY" value={injectForm.vy} onChange={(e) => setInjectForm({ ...injectForm, vy: parseFloat(e.target.value) })} className="bg-gray-800 border border-gray-700 rounded p-2 text-xs focus:border-blue-500 focus:outline-none placeholder-gray-600" />
+                                <input type="number" placeholder="VZ" value={injectForm.vz} onChange={(e) => setInjectForm({ ...injectForm, vz: parseFloat(e.target.value) })} className="bg-gray-800 border border-gray-700 rounded p-2 text-xs focus:border-blue-500 focus:outline-none placeholder-gray-600" />
+                            </div>
+                        </div>
+
+                        <div className="pt-4">
+                            <button
+                                onClick={handleInject}
+                                className="w-full bg-[#1a237e] hover:bg-[#283593] text-blue-100 font-bold py-3 rounded border border-blue-900 shadow-lg shadow-blue-900/20 transition-all uppercase tracking-widest text-xs flex items-center justify-center gap-2"
+                            >
+                                <Plus size={16} /> Inject Body
+                            </button>
+                        </div>
                     </div>
                 )}
 
             </div>
-
-            {/* CSS helper for inputs */}
-            <style>{`
-                .input-scientific {
-                    width: 100%;
-                    background: rgba(255,255,255,0.05);
-                    border: 1px solid rgba(255,255,255,0.1);
-                    border-radius: 4px;
-                    padding: 4px 8px;
-                    font-size: 12px;
-                    color: #ddd;
-                    font-family: monospace;
-                    outline: none;
-                }
-                .input-scientific:focus {
-                    border-color: rgba(59, 130, 246, 0.5);
-                }
-            `}</style>
         </div>
     );
 };
 
-// Subcomponents
-
-
-
-const TabButton = ({ icon, label, active, onClick }: { icon: React.ReactNode, label: string, active: boolean, onClick: () => void }) => (
-    <button
-        onClick={onClick}
-        className={clsx(
-            "flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all flex-1 justify-center",
-            active ? "bg-white/10 text-white shadow-sm" : "text-gray-500 hover:text-gray-300 hover:bg-white/5"
-        )}
-    >
-        {icon}
-        <span>{label}</span>
-    </button>
-);
-
-const Toggle = ({ label, active, onClick, icon }: { label: string, active: boolean, onClick: () => void, icon: React.ReactNode }) => (
-    <button
-        onClick={onClick}
-        className={clsx(
-            "w-full flex items-center justify-between p-2 rounded border transition-all text-xs",
-            active ? "bg-green-500/5 border-green-500/20 text-green-400" : "bg-white/5 border-white/5 text-gray-500 hover:bg-white/10"
-        )}
-    >
-        <div className="flex items-center gap-2">
-            {icon}
-            <span>{label}</span>
+// Helper for slider to clean up code
+const Slider = ({ label, value, min, max, step, onChange }: { label: string, value: number, min: number, max: number, step: number, onChange: (v: number) => void }) => (
+    <div className="space-y-1">
+        <div className="flex justify-between text-xs">
+            <span className="text-gray-400">{label}</span>
+            <span className="text-blue-400 font-mono">{value.toFixed(1)}</span>
         </div>
-        <div className={clsx("w-2 h-2 rounded-full", active ? "bg-green-500" : "bg-gray-600")} />
-    </button>
+        <input
+            type="range" min={min} max={max} step={step}
+            value={value} onChange={(e) => onChange(parseFloat(e.target.value))}
+            className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+        />
+    </div>
 );
 
-const InputGroup = ({ label, children }: { label: string, children: React.ReactNode }) => (
-    <div>
-        <label className="text-[10px] text-gray-500 uppercase mb-1 block">{label}</label>
-        {children}
-    </div>
+const Toggle = ({ label, checked, onChange }: { label: string, checked: boolean, onChange: (b: boolean) => void }) => (
+    <label className="flex items-center space-x-2 cursor-pointer select-none group" onClick={(e) => { e.preventDefault(); onChange(!checked); }}>
+        <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${checked ? 'bg-blue-600 border-blue-600' : 'bg-transparent border-gray-600 group-hover:border-gray-500'}`}>
+            {checked && <div className="w-2 h-2 bg-white rounded-sm" />}
+        </div>
+        <span className="text-gray-300 group-hover:text-white transition-colors">{label}</span>
+    </label>
 );
